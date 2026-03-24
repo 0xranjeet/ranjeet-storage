@@ -474,10 +474,12 @@ async function handleShortLink(req, res) {
   </head>
   <body>
     <main class="wrap">
+    <!--
       <div class="topbar">
         <a class="brand" href="/"><h1 class="name">Ranjeet decentrazile storage</h1></a>
       </div>
       <hr>
+     --> 
       <section class="panel">
         <img class="preview" src="${links.image}" alt="${escapedName}" />
         <div class="actions">
