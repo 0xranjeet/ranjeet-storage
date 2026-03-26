@@ -4,7 +4,7 @@ image upload website that stores files on Pinata and returns shareable short lin
 
 ## Features
 
-- Fast single file upload UI
+- Fast single file upload
 - Clipboard paste support for copied images
 - Server side Pinata upload using JWT
 - Short share link plus direct open, direct file and download links
