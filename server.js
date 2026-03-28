@@ -171,6 +171,14 @@ function isImageName(fileName = "") {
   return /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(fileName);
 }
 
+function isTextLikeFile(fileName = "", contentType = "") {
+  if (contentType.startsWith("text/")) {
+    return true;
+  }
+
+  return /\.(txt|md|json|ya?ml|xml|csv|log|js|ts|jsx|tsx|css|html|py|java|c|cpp|sh)$/i.test(fileName);
+}
+
 function buildGatewayLinks(host, rootCid, storedPath, displayName) {
   const encodedName = encodeURIComponent(displayName);
   const baseUrl = `https://${host}/ipfs/${rootCid}`;
@@ -354,6 +362,190 @@ async function handleShortLink(req, res) {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
 
+    if (isTextLikeFile(fileName, record.type || "")) {
+      let fileContent = "Could not load file preview.";
+
+      try {
+        const textResponse = await fetch(links.image);
+        if (textResponse.ok) {
+          fileContent = await textResponse.text();
+        }
+      } catch (fetchError) {
+        fileContent = "Could not load file preview.";
+      }
+
+      const escapedContent = fileContent
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      return res
+        .status(200)
+        .type("html")
+        .send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>decentrazile storage</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --text: #000000;
+        --muted: #666666;
+        --line: rgba(0, 0, 0, 0.12);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(0, 0, 0, 0.05), transparent 30%),
+          linear-gradient(135deg, #ffffff, #f4f4f4);
+        color: var(--text);
+      }
+      .wrap {
+        width: min(1320px, calc(100% - 20px));
+        margin: 0 auto;
+        padding: 16px 0 24px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .brand {
+        color: var(--text);
+        text-decoration: none;
+      }
+      .name {
+        margin: 0;
+        font-size: clamp(1.2rem, 2.8vw, 2rem);
+        line-height: 1;
+      }
+      .panel {
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+      }
+      .copy-top {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 0 10px;
+        color: #ffffff;
+        background: #000000;
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.84rem;
+      }
+      .content {
+        margin: 0;
+        padding: 16px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        font: 0.96rem/1.55 Consolas, Monaco, monospace;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        padding: 0 10px;
+        color: #ffffff;
+        background: #000000;
+        text-decoration: none;
+        font-size: 0.84rem;
+      }
+      .btn.secondary {
+        background: #ffffff;
+        color: #000000;
+        border: 1px solid var(--line);
+      }
+      @media (max-width: 720px) {
+        .wrap {
+          width: calc(100% - 12px);
+          padding: 8px 0 16px;
+        }
+        .panel {
+          padding: 8px;
+        }
+        .content {
+          padding: 12px;
+          font-size: 0.86rem;
+        }
+        .btn {
+          min-height: 32px;
+          padding: 0 9px;
+          font-size: 0.8rem;
+        }
+        .copy-top {
+          min-height: 32px;
+          padding: 0 9px;
+          font-size: 0.8rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="topbar">
+        <a class="brand" href="/"><h1 class="name">Ranjeet decentrazile storage</h1></a>
+        <button class="copy-top" id="copyTextButton" type="button">Copy</button>
+      </div>
+      <section class="panel">
+        <pre class="content" id="textContent">${escapedContent}</pre>
+        <div class="actions">
+          <a class="btn" href="${links.image}" target="_blank" rel="noreferrer">Open Direct File</a>
+          <a class="btn secondary" href="${links.download}" target="_blank" rel="noreferrer">Download</a>
+        </div>
+      </section>
+    </main>
+    <script>
+      const copyButton = document.getElementById("copyTextButton");
+      const textContent = document.getElementById("textContent");
+
+      copyButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(textContent.textContent || "");
+          copyButton.textContent = "Copied";
+          setTimeout(() => {
+            copyButton.textContent = "Copy";
+          }, 1200);
+        } catch (error) {
+          copyButton.textContent = "Failed";
+          setTimeout(() => {
+            copyButton.textContent = "Copy";
+          }, 1200);
+        }
+      });
+    </script>
+  </body>
+</html>`);
+    }
+
     if (!isImageName(fileName) && !(record.type || "").startsWith("image/")) {
       return res.redirect(links.image);
     }
@@ -366,7 +558,7 @@ async function handleShortLink(req, res) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Decentrazile storage</title>
+    <title>decentrazile storage</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -474,12 +666,9 @@ async function handleShortLink(req, res) {
   </head>
   <body>
     <main class="wrap">
-    <!--
       <div class="topbar">
         <a class="brand" href="/"><h1 class="name">Ranjeet decentrazile storage</h1></a>
       </div>
-      <hr>
-     --> 
       <section class="panel">
         <img class="preview" src="${links.image}" alt="${escapedName}" />
         <div class="actions">
