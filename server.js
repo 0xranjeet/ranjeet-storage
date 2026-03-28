@@ -419,8 +419,6 @@ async function handleShortLink(req, res) {
       .topbar {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
         margin-bottom: 10px;
       }
       .brand {
@@ -438,6 +436,7 @@ async function handleShortLink(req, res) {
         border: 1px solid var(--line);
         background: rgba(255, 255, 255, 0.96);
         box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+        position: relative;
       }
       .copy-top {
         display: inline-flex;
@@ -451,10 +450,14 @@ async function handleShortLink(req, res) {
         cursor: pointer;
         font: inherit;
         font-size: 0.84rem;
+        position: absolute;
+        top: 12px;
+        right: 12px;
       }
       .content {
         margin: 0;
         padding: 16px;
+        padding-top: 54px;
         overflow: auto;
         white-space: pre-wrap;
         word-break: break-word;
@@ -492,8 +495,16 @@ async function handleShortLink(req, res) {
         .panel {
           padding: 8px;
         }
+        .copy-top {
+          top: 8px;
+          right: 8px;
+          min-height: 32px;
+          padding: 0 9px;
+          font-size: 0.8rem;
+        }
         .content {
           padding: 12px;
+          padding-top: 48px;
           font-size: 0.86rem;
         }
         .btn {
@@ -512,10 +523,10 @@ async function handleShortLink(req, res) {
   <body>
     <main class="wrap">
       <div class="topbar">
-        <a class="brand" href="/"><h1 class="name">decentrazile storage</h1></a>
-        <button class="copy-top" id="copyTextButton" type="button">Copy</button>
+        <a class="brand" href="/"><h1 class="name">Ranjeet decentrazile storage</h1></a>
       </div>
       <section class="panel">
+        <button class="copy-top" id="copyTextButton" type="button">Copy</button>
         <pre class="content" id="textContent">${escapedContent}</pre>
         <div class="actions">
           <a class="btn" href="${links.image}" target="_blank" rel="noreferrer">Open Direct File</a>
