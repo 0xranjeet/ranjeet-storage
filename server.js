@@ -523,7 +523,7 @@ async function handleShortLink(req, res) {
   <body>
     <main class="wrap">
       <div class="topbar">
-        <a class="brand" href="/"><h1 class="name">Ranjeet decentrazile storage</h1></a>
+        <a class="brand" href="/"><h1 class="name">decentrazile storage</h1></a>
       </div>
       <section class="panel">
         <button class="copy-top" id="copyTextButton" type="button">Copy</button>
