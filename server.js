@@ -21,6 +21,8 @@ const DEFAULT_GATEWAY = "gateway.pinata.cloud";
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "";
 const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || "";
 const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY || "";
+const ADMIN_ACCESS_KEY = process.env.ADMIN_ACCESS_KEY || "";
+const ADMIN_COOKIE_NAME = "dexstorage_admin";
 
 let cachedGroupId = null;
 let cachedGatewayHost = process.env.PINATA_GATEWAY_HOST || "";
@@ -28,6 +30,7 @@ let firestore = null;
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 function getHeaders(extra = {}) {
   if (!PINATA_JWT) {
@@ -62,6 +65,45 @@ function getFirestore() {
   }
 
   return firestore;
+}
+
+function parseCookies(req) {
+  const raw = req.headers.cookie || "";
+
+  return raw.split(";").reduce((acc, item) => {
+    const [key, ...rest] = item.trim().split("=");
+    if (!key) {
+      return acc;
+    }
+
+    acc[key] = decodeURIComponent(rest.join("=") || "");
+    return acc;
+  }, {});
+}
+
+function getAdminCookieValue() {
+  return encodeURIComponent(ADMIN_ACCESS_KEY);
+}
+
+function isAdminAuthenticated(req) {
+  if (!ADMIN_ACCESS_KEY) {
+    return false;
+  }
+
+  const cookies = parseCookies(req);
+  return cookies[ADMIN_COOKIE_NAME] === ADMIN_ACCESS_KEY;
+}
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_ACCESS_KEY) {
+    return res.status(500).send("ADMIN_ACCESS_KEY is missing. Add it to your environment variables.");
+  }
+
+  if (!isAdminAuthenticated(req)) {
+    return res.redirect("/admin");
+  }
+
+  return next();
 }
 
 async function readJson(response) {
@@ -369,6 +411,16 @@ async function updateShortRecord(code, updates) {
   return nextValue;
 }
 
+async function listShortRecords() {
+  const db = getFirestore();
+  const snapshot = await db.collection("short_links").orderBy("createdAt", "desc").get();
+
+  return snapshot.docs.map((doc) => ({
+    code: doc.id,
+    ...doc.data(),
+  }));
+}
+
 app.get("/api/health", async (_req, res) => {
   const gatewayHost = await getGatewayHost();
 
@@ -377,6 +429,300 @@ app.get("/api/health", async (_req, res) => {
     groupName: PINATA_GROUP_NAME,
     gatewayHost,
   });
+});
+
+app.get("/admin", (req, res) => {
+  if (!ADMIN_ACCESS_KEY) {
+    return res
+      .status(500)
+      .type("html")
+      .send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>decentrazile storage</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; padding: 24px;">
+    <p>ADMIN_ACCESS_KEY is missing. Add it to your environment variables.</p>
+  </body>
+</html>`);
+  }
+
+  if (isAdminAuthenticated(req)) {
+    return res.redirect("/admin/files");
+  }
+
+  return res
+    .status(200)
+    .type("html")
+    .send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>decentrazile storage</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(0, 0, 0, 0.05), transparent 30%),
+          linear-gradient(135deg, #ffffff, #f4f4f4);
+        color: #000;
+      }
+      .wrap {
+        width: min(560px, calc(100% - 24px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: clamp(1.6rem, 4vw, 2.4rem);
+      }
+      .card {
+        padding: 18px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+      }
+      label {
+        display: grid;
+        gap: 8px;
+      }
+      input {
+        min-height: 46px;
+        padding: 0 12px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        font: inherit;
+      }
+      button {
+        margin-top: 12px;
+        min-height: 42px;
+        padding: 0 14px;
+        border: 0;
+        background: #000;
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      p {
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>decentrazile storage</h1>
+      <div class="card">
+        <form method="post" action="/admin/login">
+          <label>
+            <span>Admin access key</span>
+            <input type="password" name="key" placeholder="Enter your admin key" required />
+          </label>
+          <button type="submit">Open Admin</button>
+        </form>
+        <p>Only you can access this page with the correct key.</p>
+      </div>
+    </main>
+  </body>
+</html>`);
+});
+
+app.post("/admin/login", (req, res) => {
+  if (!ADMIN_ACCESS_KEY) {
+    return res.status(500).send("ADMIN_ACCESS_KEY is missing. Add it to your environment variables.");
+  }
+
+  if ((req.body?.key || "") !== ADMIN_ACCESS_KEY) {
+    return res.redirect("/admin");
+  }
+
+  res.setHeader(
+    "Set-Cookie",
+    `${ADMIN_COOKIE_NAME}=${getAdminCookieValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+  );
+
+  return res.redirect("/admin/files");
+});
+
+app.post("/admin/logout", (_req, res) => {
+  res.setHeader(
+    "Set-Cookie",
+    `${ADMIN_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+  );
+
+  return res.redirect("/admin");
+});
+
+app.get("/admin/files", requireAdmin, async (req, res) => {
+  try {
+    const records = await listShortRecords();
+    const rows = records
+      .map((record) => {
+        const fileName = escapeHtml(record.name || "-");
+        const shortCode = escapeHtml(record.code || "-");
+        const cid = escapeHtml(record.cid || "-");
+        const type = escapeHtml(record.type || "-");
+        const createdAt = escapeHtml(record.createdAt || "-");
+        const shortLink = escapeHtml(buildShortLink(req, record.code));
+
+        return `<tr>
+          <td><a href="/s/${shortCode}" target="_blank" rel="noreferrer">${shortCode}</a></td>
+          <td>${fileName}</td>
+          <td>${type}</td>
+          <td class="cid">${cid}</td>
+          <td>${createdAt}</td>
+          <td><a href="${shortLink}" target="_blank" rel="noreferrer">Open</a></td>
+        </tr>`;
+      })
+      .join("");
+
+    return res
+      .status(200)
+      .type("html")
+      .send(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>decentrazile storage</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(0, 0, 0, 0.05), transparent 30%),
+          linear-gradient(135deg, #ffffff, #f4f4f4);
+        color: #000;
+      }
+      .wrap {
+        width: min(1480px, calc(100% - 20px));
+        margin: 0 auto;
+        padding: 18px 0 24px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .brand {
+        color: #000;
+        text-decoration: none;
+      }
+      .title {
+        margin: 0;
+        font-size: clamp(1.2rem, 2.8vw, 2rem);
+      }
+      .logout {
+        min-height: 36px;
+        padding: 0 12px;
+        border: 0;
+        background: #000;
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      .panel {
+        padding: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+      }
+      .table-wrap {
+        overflow: auto;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: #fff;
+      }
+      table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+      }
+      th, td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+        border-right: 1px solid rgba(0, 0, 0, 0.12);
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.92rem;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        background: #f7f7f7;
+      }
+      tr:nth-child(even) td {
+        background: rgba(0, 0, 0, 0.015);
+      }
+      .cid {
+        font-family: Consolas, Monaco, monospace;
+        font-size: 0.84rem;
+      }
+      a {
+        color: #000;
+      }
+      @media (max-width: 720px) {
+        .wrap {
+          width: calc(100% - 12px);
+          padding: 8px 0 16px;
+        }
+        th, td {
+          padding: 8px 10px;
+          font-size: 0.84rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="topbar">
+        <a class="brand" href="/"><h1 class="title">decentrazile storage</h1></a>
+        <form method="post" action="/admin/logout">
+          <button class="logout" type="submit">Logout</button>
+        </form>
+      </div>
+      <section class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Short Code</th>
+                <th>File Name</th>
+                <th>Type</th>
+                <th>CID</th>
+                <th>Created</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || `<tr><td colspan="6">No files found.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>`);
+  } catch (error) {
+    return res.status(500).send(error.message || "Could not load admin files.");
+  }
 });
 
 app.post("/api/links", async (req, res) => {
