@@ -863,13 +863,14 @@ async function handleShortLink(req, res) {
         min-width: 760px;
       }
       th, td {
-        padding: 10px 12px;
+        padding: 6px 10px;
         border-bottom: 1px solid var(--line);
         border-right: 1px solid var(--line);
         text-align: left;
         vertical-align: top;
-        font-size: 0.92rem;
+        font-size: 0.82rem;
         white-space: nowrap;
+        line-height: 1.35;
       }
       th {
         position: sticky;
@@ -911,8 +912,8 @@ async function handleShortLink(req, res) {
           padding: 8px;
         }
         th, td {
-          padding: 8px 10px;
-          font-size: 0.84rem;
+          padding: 5px 8px;
+          font-size: 0.76rem;
         }
         .btn {
           min-height: 32px;
