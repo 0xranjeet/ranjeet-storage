@@ -868,7 +868,7 @@ async function handleShortLink(req, res) {
         border-right: 1px solid var(--line);
         text-align: left;
         vertical-align: top;
-        font-size: 0.82rem;
+        font-size: 1rem;
         white-space: nowrap;
         line-height: 1.35;
       }
